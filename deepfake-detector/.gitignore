@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+*.egg-info/
+
+# Données et modèles (trop lourds, à partager hors Git)
+data/*
+!data/.gitkeep
+models/*
+!models/.gitkeep
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.onnx
+*.tflite
+*.npy
+*.npz
+
+# Médias
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.wav
+*.mp3
+*.flac
+
+# Secrets
+.env
+*.key
+
+# Mobile
+node_modules/
+.expo/
+android/build/
+
+# Divers
+.DS_Store
+.idea/
+.vscode/
+runs/
+wandb/
+logs/
