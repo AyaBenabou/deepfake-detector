@@ -18,6 +18,7 @@ Utilisation dans un notebook Kaggle :
 """
 import argparse
 import os
+import sys
 import shutil
 
 import cv2
@@ -256,11 +257,11 @@ def _relire_pistes(dossier):
     return pistes
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and "ipykernel" not in sys.modules:   # seulement en terminal
     ap = argparse.ArgumentParser(description="Extraction des visages et suivi par personne")
     ap.add_argument("--csv", default="video/configs/all_videos.csv")
     ap.add_argument("--sortie", default="/kaggle/working/faces")
     ap.add_argument("--limite", type=int, default=None)
-    args = ap.parse_args()
+    args, _ = ap.parse_known_args()   # ignore les options ajoutées par Jupyter
     res = traiter_table(args.csv, args.sortie, creer_detecteur(), limite=args.limite)
     print(res.groupby("video")["piste_id"].count().value_counts().sort_index())
