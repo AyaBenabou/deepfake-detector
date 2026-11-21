@@ -1,4 +1,4 @@
-"""Extraction des visages (version 2) : suivi de TOUTES les personnes de la vidéo.
+"""Extraction des visages (version 3 : éclaircit les images sombres) : suivi de TOUTES les personnes de la vidéo.
 
 Pour chaque vidéo :
   1. on prélève FPS_CIBLE images par seconde (au plus MAX_FRAMES images) ;
@@ -41,6 +41,8 @@ MAX_ABSENCE = 3          # une piste est fermée après autant d'images sans vis
 DIST_MAX = 1.0           # distance max (en tailles de visage) pour relier deux visages
 MIN_VISAGES = 8          # une piste plus courte est écartée (seuil réduit pour les vidéos courtes)
 MAX_PISTES = 4           # nombre maximal de pistes gardées par vidéo (les plus grandes)
+SEUIL_SOMBRE = 60        # luminosité moyenne (0-255) en dessous de laquelle l'image est éclaircie
+GAMMA_SOMBRE = 0.4       # correction gamma appliquée aux images sombres (< 1 = éclaircit)
 
 
 def creer_detecteur(dispositif=None):
@@ -87,6 +89,7 @@ class Piste:
         self.boite = boite          # dernière boîte connue (x1, y1, x2, y2)
         self.dernier_t = t          # dernier indice d'image où le visage est vu
         self.premier_t = t
+        self.temps = []             # indice d'image prélevée de chaque visage enregistré
         self.n = 0                  # nombre de visages enregistrés
         self.surface_totale = 0.0
 
@@ -122,6 +125,22 @@ def associer(pistes_actives, detections):
 
 
 # --------------------------------------------------------------------------- #
+# Images sombres
+# --------------------------------------------------------------------------- #
+_TABLE_GAMMA = (255.0 * (np.arange(256) / 255.0) ** GAMMA_SOMBRE).astype(np.uint8)
+
+
+def eclaircir_si_sombre(frame):
+    """Éclaircit (gamma) une image dont la luminosité moyenne est sous SEUIL_SOMBRE.
+    Les images normales sont renvoyées telles quelles. Le détecteur MTCNN ne voit
+    pas les visages dans le noir (luminosité ~35 : aucun visage ; ~106 : confiance 0,99)."""
+    gris = cv2.cvtColor(frame[::8, ::8], cv2.COLOR_BGR2GRAY)      # sous-échantillon : rapide
+    if float(gris.mean()) >= SEUIL_SOMBRE:
+        return frame
+    return cv2.LUT(frame, _TABLE_GAMMA)
+
+
+# --------------------------------------------------------------------------- #
 # Extraction d'une vidéo
 # --------------------------------------------------------------------------- #
 def extraire_pistes(chemin_video, dossier_sortie, detecteur, fps_cible=FPS_CIBLE,
@@ -150,10 +169,12 @@ def extraire_pistes(chemin_video, dossier_sortie, detecteur, fps_cible=FPS_CIBLE
                 t += 1
         i += 1
     cap.release()
-    return _filtrer_pistes(pistes, dossier_sortie, n_images=t)
+    # l'image prélevée numéro t vient de l'image lue t*pas, donc de la seconde t*pas/fps
+    return _filtrer_pistes(pistes, dossier_sortie, n_images=t, seconde_par_image=pas / fps)
 
 
 def _traiter_image(frame, t, detecteur, pistes, actives, dossier_sortie, aligner):
+    frame = eclaircir_si_sombre(frame)       # détection ET recadrage sur l'image éclaircie
     h, w = frame.shape[:2]
     f = LARGEUR_DETECTION / w
     petit = cv2.resize(frame, (LARGEUR_DETECTION, int(h * f)))
@@ -186,11 +207,12 @@ def _traiter_image(frame, t, detecteur, pistes, actives, dossier_sortie, aligner
         cv2.imwrite(os.path.join(dossier, f"{piste.n:03d}.jpg"), visage,
                     [cv2.IMWRITE_JPEG_QUALITY, 95])
         piste.n += 1
+        piste.temps.append(t)
         piste.boite, piste.dernier_t = boite, t
         piste.surface_totale += (boite[2] - boite[0]) * (boite[3] - boite[1])
 
 
-def _filtrer_pistes(pistes, dossier_sortie, n_images):
+def _filtrer_pistes(pistes, dossier_sortie, n_images, seconde_par_image=None):
     """Écarte les pistes trop courtes ; garde au plus MAX_PISTES (les plus grandes).
     Le minimum de visages s'adapte à la durée : au plus MIN_VISAGES, et au plus la
     moitié des images prélevées (une vidéo de 2 s donne seulement 6 images)."""
@@ -206,7 +228,10 @@ def _filtrer_pistes(pistes, dossier_sortie, n_images):
             shutil.rmtree(os.path.join(dossier_sortie, f"piste_{p.id}"), ignore_errors=True)
     return [dict(piste_id=p.id, n_visages=p.n, surface_moyenne=round(p.surface_moyenne()),
                  premiere_image=p.premier_t, derniere_image=p.dernier_t,
-                 chemin_visages=os.path.join(dossier_sortie, f"piste_{p.id}"))
+                 chemin_visages=os.path.join(dossier_sortie, f"piste_{p.id}"),
+                 # seconde de chaque visage (000.jpg, 001.jpg, ...) dans la vidéo
+                 temps_s=[round(t * seconde_par_image, 3) for t in p.temps]
+                 if seconde_par_image else None)
             for p in sorted(gardees, key=lambda p: p.id)]
 
 
@@ -240,7 +265,7 @@ def traiter_table(csv_videos, dossier_sortie, detecteur, limite=None, splits=Non
         if not pistes:
             lignes.append({**meta, "piste_id": -1, "n_visages": 0})
         for p in pistes:
-            lignes.append({**meta, **p})
+            lignes.append({**meta, **{k: x for k, x in p.items() if k != "temps_s"}})
 
     resultat = pd.DataFrame(lignes)
     resultat.to_csv(os.path.join(dossier_sortie, "pistes.csv"), index=False)

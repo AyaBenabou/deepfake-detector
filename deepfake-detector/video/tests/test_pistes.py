@@ -61,6 +61,10 @@ def main():
         assert all(p["n_visages"] == 6 for p in pistes), "6 images x 1 visage par personne"
         for p in pistes:
             assert len(os.listdir(p["chemin_visages"])) == 6
+        # heure de chaque visage : 24 images/s, une image prélevée toutes les 8 -> 3 par seconde
+        attendu = [0.0, 0.333, 0.667, 1.0, 1.333, 1.667]
+        for p in pistes:
+            assert p["temps_s"] == attendu, p["temps_s"]
         img = cv2.imread(os.path.join(sortie, "piste_0", "000.jpg"))
         assert img.shape == (ef.TAILLE, ef.TAILLE, 3)
 

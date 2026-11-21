@@ -35,3 +35,27 @@ def verdict_video(scores_par_piste, seuil=SEUIL, methode="moyenne"):
                 label="probablement généré" if score >= seuil else "probablement réel",
                 piste_suspecte=piste_max if score >= seuil else None,
                 scores_pistes=scores)
+
+
+def segments_suspects(scores, temps_s, seuil=SEUIL, longueur_min=2, fenetre=3):
+    """Moments suspects d'UNE piste.
+
+    scores  : score de chaque visage, dans l'ordre du temps ;
+    temps_s : seconde de chaque visage dans la vidéo (même longueur que scores).
+    On lisse la courbe (moyenne de `fenetre` visages voisins), puis un segment est une
+    suite d'au moins `longueur_min` visages dont le score lissé dépasse `seuil`.
+    Retourne [{"t_debut", "t_fin", "score"}] avec des temps en secondes."""
+    scores = np.asarray(scores, dtype=float)
+    demi = fenetre // 2
+    lisse = np.array([scores[max(0, i - demi): i + demi + 1].mean() for i in range(len(scores))])
+    segments, debut = [], None
+    for k in range(len(lisse) + 1):
+        dedans = k < len(lisse) and lisse[k] > seuil        # le dernier tour ferme le segment ouvert
+        if dedans and debut is None:
+            debut = k
+        if not dedans and debut is not None:
+            if k - debut >= longueur_min:
+                segments.append(dict(t_debut=float(temps_s[debut]), t_fin=float(temps_s[k - 1]),
+                                     score=float(lisse[debut:k].mean())))
+            debut = None
+    return segments
