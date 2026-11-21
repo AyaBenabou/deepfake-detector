@@ -58,8 +58,9 @@ def _explication(verdict, segments):
     return texte + " Le score est élevé sur l'ensemble de la piste, sans passage isolé."
 
 
-def analyser_video(chemin_video, detecteur, scorer, seuil=SEUIL):
-    """Retourne {score, label, segments_suspects[{t_debut, t_fin, score}], explication}."""
+def analyser_video(chemin_video, detecteur, scorer, seuil=SEUIL, detail=False):
+    """Retourne {score, label, segments_suspects[{t_debut, t_fin, score}], explication}.
+    Avec detail=True, ajoute aussi scores_pistes (score de chaque personne), pour le diagnostic."""
     dossier = tempfile.mkdtemp()
     try:
         pistes = extraire_pistes(chemin_video, os.path.join(dossier, "faces"), detecteur)
@@ -78,5 +79,8 @@ def analyser_video(chemin_video, detecteur, scorer, seuil=SEUIL):
         if moyenne >= seuil:                                  # seulement les personnes suspectes
             segments += segments_suspects(scores_pistes[pid], temps_pistes[pid], seuil)
     segments.sort(key=lambda s: s["t_debut"])
-    return dict(score=verdict["score"], label=verdict["label"],
-                segments_suspects=segments, explication=_explication(verdict, segments))
+    resultat = dict(score=verdict["score"], label=verdict["label"],
+                    segments_suspects=segments, explication=_explication(verdict, segments))
+    if detail:
+        resultat["scores_pistes"] = {int(k): round(v, 3) for k, v in verdict["scores_pistes"].items()}
+    return resultat
