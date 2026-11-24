@@ -1,5 +1,7 @@
 torch
 torchvision
+Django>=5.2,<6.0
+Pillow>=9.0
 timm
 opencv-python
 mediapipe

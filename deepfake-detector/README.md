@@ -16,7 +16,8 @@ BENABOU Aya · BELMABKHOUT Chaimae · CARIOU Baptiste · HAJJI Amine
 | `audio/` | Modèle audio (LFCC / log-Mel, ResNet-18 / RawNet2) |
 | `video/` | Modèle vidéo (EfficientNet + Bi-LSTM / GRU, timeline des segments) |
 | `fusion/` | Fusion des scores en indice global (F6) |
-| `backend/` | API FastAPI (et Django si besoin) |
+| `frontend/` | Interface web HTML/CSS/JavaScript servie par Django |
+| `backend/` | API Django REST et inférence vidéo EfficientNet-B0 + ResNet50 |
 | `mobile/` | Application React Native |
 | `docs/` | Cahier des charges, rapport, figures |
 | `data/` | Données locales : **non versionnées** |
@@ -48,3 +49,16 @@ pip install -r requirements.txt
 ## Travailler en équipe
 
 Voir [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Lancer l’interface web
+
+Depuis la racine du dépôt, activez l’environnement Python, installez les dépendances et démarrez Django :
+
+```powershell
+python -m venv backend\venv
+.\backend\venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python backend\manage.py runserver
+```
+
+Ouvrez ensuite <http://127.0.0.1:8000/>. L’API reçoit les vidéos sur `/api/video/analyze/`. Les checkpoints attendus sont `backend/models/efficientnet_b0_best.pt` et `backend/models/resnet50_best.pt` (le nom avec tiret `resnet50-best.pt` est aussi accepté). Voir [frontend/README.md](frontend/README.md) pour le détail du prétraitement et de la réponse API.
